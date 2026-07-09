@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'dart:js' as js; 
 
 void main() {
   runApp(const MiAppVelocista());
@@ -17,51 +18,146 @@ class MiAppVelocista extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Telemetría y Cálculo Avanzado',
-      theme: ThemeData.dark(),
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0D0E15),
+        cardColor: const Color(0xFF161824),
+      ),
       home: const MenuPrincipal(),
     );
   }
 }
 
-// ==========================================
+// =========================================================================
 // PANTALLA 1: MENÚ PRINCIPAL
-// ==========================================
+// =========================================================================
 class MenuPrincipal extends StatelessWidget {
   const MenuPrincipal({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Menú de Telemetría'), backgroundColor: Colors.blueGrey[900]),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.analytics, size: 80, color: Colors.blue),
-            const SizedBox(height: 40),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.bluetooth),
-              label: const Text('Modo ESP32 (Bluetooth)'),
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15), backgroundColor: Colors.blue[800]),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PantallaMedicion(modo: 'ESP32'))),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0F1123), Color(0xFF07080F)],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(30.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.2), // Regresado a withOpacity tradicional por compatibilidad de versión SDK
+                          blurRadius: 40, 
+                          spreadRadius: 10
+                        )
+                      ],
+                    ),
+                    child: const Icon(Icons.bolt_rounded, size: 100, color: Colors.cyanAccent),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'QUANTUM VELOCITY',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 3, color: Colors.white),
+                  ),
+                  const Text(
+                    'Sistema de Telemetría Dinámica Cinemática',
+                    style: TextStyle(fontSize: 13, color: Colors.white38, letterSpacing: 1),
+                  ),
+                  const SizedBox(height: 60),
+                  
+                  _buildMenuCard(
+                    context: context,
+                    titulo: 'Modo ESP32 (Bluetooth)',
+                    subtitulo: 'Sincronización externa con sensor MAX30102',
+                    icono: Icons.bluetooth_connected,
+                    colorInicio: const Color(0xFF1A2980),
+                    colorFin: const Color(0xFF26D0CE),
+                    alPresionar: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PantallaMedicion(modo: 'ESP32'))),
+                  ),
+                  const SizedBox(height: 25),
+                  
+                  _buildMenuCard(
+                    context: context,
+                    titulo: 'Modo Sensor Interno',
+                    subtitulo: 'Captura por Acelerómetro con Bypass Web',
+                    icono: Icons.smartphone_rounded,
+                    colorInicio: const Color(0xFF11998e),
+                    colorFin: const Color(0xFF38ef7d),
+                    alPresionar: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PantallaMedicion(modo: 'TELEFONO'))),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.smartphone),
-              label: const Text('Modo Sensor Interno (Teléfono)'),
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15), backgroundColor: Colors.green[800]),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const PantallaMedicion(modo: 'TELEFONO'))),
-            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuCard({
+    required BuildContext context,
+    required String titulo,
+    required String subtitulo,
+    required IconData icono,
+    required Color colorInicio,
+    required Color colorFin,
+    required VoidCallback alPresionar,
+  }) {
+    return InkWell(
+      onTap: alPresionar,
+      borderRadius: BorderRadius.circular(20),
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [colorInicio, colorFin]),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: colorInicio.withOpacity(0.3),
+              blurRadius: 15, 
+              offset: const Offset(0, 8)
+            )
           ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
+          width: double.infinity,
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Row(
+            children: [
+              Icon(icono, size: 40, color: Colors.white),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(titulo, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const SizedBox(height: 4),
+                    Text(subtitulo, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.white70),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ==========================================
-// PANTALLA 2: TOMA DE DATOS Y ANÁLISIS MULTICARRERA
-// ==========================================
+// =========================================================================
+// PANTALLA 2: MEDIDOR Y MATRICES
+// =========================================================================
 class PantallaMedicion extends StatefulWidget {
   final String modo; 
   const PantallaMedicion({super.key, required this.modo});
@@ -80,7 +176,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
   bool estaMidiendo = false;
   bool medicionActualTerminada = false;
   
-  // Suscripciones de hardware
   StreamSubscription<UserAccelerometerEvent>? suscripcionTelefonia;
   StreamSubscription<List<int>>? suscripcionESP32;
   BluetoothDevice? dispositivoESP32;
@@ -89,13 +184,11 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
   DateTime? tiempoUltimaLectura;
   double tiempoInicialAbsoluto = 0.0;
 
-  // Variables Diferenciales
   double? tiempoSeleccionado;
   double? velocidadCalculada;
   double? tasaCambioInstantanea; 
   String pulsoActualString = "Sin pulso";
 
-  // Variables del Modelado Polinómico Adaptable
   List<math.Point<double>> carreraPromedio = [];
   List<math.Point<double>> maximosLocales = [];
   List<math.Point<double>> minimosLocales = [];
@@ -104,8 +197,20 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
   Future<void> iniciarMedicion() async {
     if (carrerasCompletadas >= 2) {
-      mostrarAviso("Ya has completado las 2 tomas de datos.");
+      mostrarAviso("Se alcanzaron las 2 tomas máximas del protocolo.");
       return;
+    }
+
+    if (widget.modo == 'TELEFONO') {
+      try {
+        final bool permisoConcedido = await js.context.callMethod('solicitarPermisoSensores');
+        if (!permisoConcedido) {
+          mostrarAviso("❌ Error: Permiso de hardware denegado.");
+          return;
+        }
+      } catch (e) {
+        // Ignorar de forma segura en plataformas nativas
+      }
     }
 
     setState(() {
@@ -115,7 +220,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       datosCarreraActual.clear(); 
       tiempoSeleccionado = null; 
       velocidadAcumulada = 0.0;
-      pulsoActualString = widget.modo == 'TELEFONO' ? "No hay toma de pulso" : "Esperando BLE...";
+      pulsoActualString = widget.modo == 'TELEFONO' ? "Inactivo en Teléfono" : "Conectando BLE...";
     });
 
     try {
@@ -131,9 +236,15 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
   }
 
   void detenerMedicion({bool errorHardware = false}) {
-    if (suscripcionTelefonia != null) suscripcionTelefonia!.cancel(); 
-    if (suscripcionESP32 != null) suscripcionESP32!.cancel();
-    if (dispositivoESP32 != null) dispositivoESP32!.disconnect();
+    if (suscripcionTelefonia != null) {
+      suscripcionTelefonia!.cancel();
+    }
+    if (suscripcionESP32 != null) {
+      suscripcionESP32!.cancel();
+    }
+    if (dispositivoESP32 != null) {
+      dispositivoESP32!.disconnect();
+    }
     
     setState(() {
       estaMidiendo = false;
@@ -151,9 +262,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     });
   }
 
-  // ==========================================
-  // HARDWARE: LECTURA DEL TELÉFONO CON DESACELERACIÓN
-  // ==========================================
   void _activarEscuchaAcelerometro() {
     tiempoUltimaLectura = DateTime.now();
     tiempoInicialAbsoluto = DateTime.now().millisecondsSinceEpoch / 1000.0;
@@ -165,24 +273,18 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       tiempoUltimaLectura = ahora;
 
       if (dt <= 0) return;
-
-      // Usamos el eje Y principal del teléfono (avance hacia adelante/atrás)
-      // Si el teléfono va en vertical en el cuerpo, Y o Z registran el empuje.
       double aceleracionEje = event.y; 
 
-      // Filtro de ruido dinámico
       if (aceleracionEje.abs() < 0.2) {
         aceleracionEje = 0.0;
-        // Aplicamos fricción natural del aire/suelo para que la velocidad decaer si no se acelera
         velocidadAcumulada *= math.exp(-0.4 * dt); 
       } else {
-        // Sumamos (si acelera) o restamos (si desacelera/frena de golpe)
         velocidadAcumulada += aceleracionEje * dt;
       }
 
-      // Evitamos velocidades negativas por descalibración física
-      if (velocidadAcumulada < 0) velocidadAcumulada = 0.0;
-
+      if (velocidadAcumulada < 0) {
+        velocidadAcumulada = 0.0;
+      }
       double tGrafica = (ahora.millisecondsSinceEpoch / 1000.0) - tiempoInicialAbsoluto;
 
       setState(() {
@@ -191,18 +293,16 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     });
   }
 
-  // ==========================================
-  // HARDWARE: BLUETOOTH ESP32 CON DESACELERACIÓN
-  // ==========================================
   Future<void> _activarEscuchaESP32() async {
-    FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
+    // LLAMADA COMPATIBLE UNIVERSAL: quitamos los parámetros conflictivos de versiones intermedias
+    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
     
     FlutterBluePlus.scanResults.listen((results) async {
       for (ScanResult r in results) {
         if (r.device.platformName == "ESP32_ATLETA") {
           FlutterBluePlus.stopScan();
           dispositivoESP32 = r.device;
-          await (dispositivoESP32 as dynamic).connect();
+          await dispositivoESP32!.connect();
           
           List<BluetoothService> servicios = await dispositivoESP32!.discoverServices();
           for (BluetoothService s in servicios) {
@@ -228,16 +328,15 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
                     tiempoUltimaLectura = ahora;
 
                     if (dt <= 0) return;
-
-                    // Si mandas aceleración con signo (+/-) desde el ESP32 se resta sola.
-                    // Si mandas solo magnitudes absolutas, procesamos la desaceleración por umbral:
                     if (aceleracionBLE.abs() < 0.2) {
-                      velocidadAcumulada *= math.exp(-0.5 * dt); // Decaimiento exponencial controlado
+                      velocidadAcumulada *= math.exp(-0.5 * dt);
                     } else {
                       velocidadAcumulada += aceleracionBLE * dt;
                     }
 
-                    if (velocidadAcumulada < 0) velocidadAcumulada = 0.0;
+                    if (velocidadAcumulada < 0) {
+                      velocidadAcumulada = 0.0;
+                    }
                     double tGrafica = (ahora.millisecondsSinceEpoch / 1000.0) - tiempoInicialAbsoluto;
 
                     setState(() {
@@ -254,9 +353,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     });
   }
 
-  // ==========================================
-  // MATEMÁTICA AVANZADA: REGRESIÓN DE GRADO VARIABLE
-  // ==========================================
   void _ejecutarModeladoPolinomialDinamico() {
     if (datosCarrera1 == null || datosCarrera2 == null || datosCarrera1!.isEmpty || datosCarrera2!.isEmpty) return;
     carreraPromedio.clear(); maximosLocales.clear(); minimosLocales.clear();
@@ -271,7 +367,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
     if (carreraPromedio.length < 5) return;
 
-    // Extracción de Picos (Máximos) y Valles (Mínimos por Desaceleración)
     for (int i = 1; i < carreraPromedio.length - 1; i++) {
       double vAnt = carreraPromedio[i - 1].y; 
       double vAct = carreraPromedio[i].y; 
@@ -286,7 +381,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
     int totalExtremos = maximosLocales.length + minimosLocales.length;
     int gradoOptimal = (totalExtremos + 2).clamp(2, 6);
-
     int matrizSize = gradoOptimal + 1;
     List<List<double>> matrizX = List.generate(matrizSize, (_) => List.filled(matrizSize, 0.0));
     List<double> vectorY = List.filled(matrizSize, 0.0);
@@ -301,7 +395,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     }
 
     List<double> coeficientes = _resolverGaussJordan(matrizX, vectorY);
-
     String buildEcuacion = "v(t) = ";
     Map<int, String> superindices = {2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶'};
     
@@ -320,13 +413,12 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
     setState(() {
       ecuacionPromedio = buildEcuacion;
-      
       if (gradoOptimal >= 4) {
-        conclusionRendimiento = "Modelado Polinómico Adaptado (Grado $gradoOptimal). Se detectaron curvas asimétricas y pérdidas cinemáticas reales con $totalExtremos puntos críticos. El atleta presenta variaciones claras entre aceleración y desaceleración (Picos de zancada y fatiga).";
+        conclusionRendimiento = "Modelado Adaptable (Grado $gradoOptimal). Se detectaron asimetrías críticas en $totalExtremos extremos. Pérdida por fatiga detectable.";
       } else if (gradoOptimal == 3) {
-        conclusionRendimiento = "Ajuste Cúbico (Grado 3). Curva de aceleración inicial seguida de una fatiga/desaceleración progresiva estable al final del tramo.";
+        conclusionRendimiento = "Ajuste Cúbico (Grado 3). Aceleración estable seguida de meseta cinemática controlada.";
       } else {
-        conclusionRendimiento = "Ajuste Parabólico Tradicional (Grado 2). Trayectoria balística simple de incremento uniforme.";
+        conclusionRendimiento = "Ajuste Parabólico (Grado 2). Trayectoria balística regular sin anomalías de zancada.";
       }
     });
   }
@@ -335,14 +427,20 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     int n = B.length;
     for (int i = 0; i < n; i++) {
       double pivot = A[i][i];
-      if (pivot == 0) pivot = 1e-9; 
-      for (int j = i; j < n; j++) A[i][j] /= pivot;
+      if (pivot == 0) {
+        pivot = 1e-9;
+      } 
+      for (int j = i; j < n; j++) {
+        A[i][j] /= pivot;
+      }
       B[i] /= pivot;
 
       for (int k = 0; k < n; k++) {
         if (k != i) {
           double factor = A[k][i];
-          for (int j = i; j < n; j++) A[k][j] -= factor * A[i][j];
+          for (int j = i; j < n; j++) {
+            A[k][j] -= factor * A[i][j];
+          }
           B[k] -= factor * B[i];
         }
       }
@@ -369,7 +467,9 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     double tTarget = (tMin + (xClic / maxAncho) * (tMax - tMin)).clamp(tMin, tMax);
 
     int i = 0;
-    while (i < datosCarreraActual.length - 1 && datosCarreraActual[i + 1].x < tTarget) i++;
+    while (i < datosCarreraActual.length - 1 && datosCarreraActual[i + 1].x < tTarget) {
+      i++;
+    }
     
     double dt = datosCarreraActual[i+1].x - datosCarreraActual[i].x;
     double dv = datosCarreraActual[i+1].y - datosCarreraActual[i].y;
@@ -395,8 +495,15 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
   @override
   Widget build(BuildContext context) {
+    final Color colorTematico = widget.modo == 'ESP32' ? Colors.blueAccent : Colors.greenAccent;
+
     return Scaffold(
-      appBar: AppBar(title: Text('Telemetría: ${widget.modo}'), backgroundColor: widget.modo == 'ESP32' ? Colors.blue[900] : Colors.green[900], actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: reiniciarTodoElProceso)]),
+      appBar: AppBar(
+        title: Text('TELEMETRÍA: ${widget.modo}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.5)),
+        backgroundColor: const Color(0xFF111322),
+        elevation: 0,
+        actions: [IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white70), onPressed: reiniciarTodoElProceso)],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -404,50 +511,83 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
           children: [
             Row(
               children: [
-                Expanded(child: Container(height: 12, decoration: BoxDecoration(color: carrerasCompletadas >= 1 ? Colors.green : Colors.grey[800], borderRadius: BorderRadius.circular(4)))),
-                const SizedBox(width: 6),
-                Expanded(child: Container(height: 12, decoration: BoxDecoration(color: carrerasCompletadas >= 2 ? Colors.green : Colors.grey[800], borderRadius: BorderRadius.circular(4)))),
+                Expanded(child: Container(height: 8, decoration: BoxDecoration(color: carrerasCompletadas >= 1 ? Colors.greenAccent : Colors.white10, borderRadius: BorderRadius.circular(10), boxShadow: [if(carrerasCompletadas>=1) const BoxShadow(color: Colors.greenAccent, blurRadius: 8)]))),
+                const SizedBox(width: 8),
+                Expanded(child: Container(height: 8, decoration: BoxDecoration(color: carrerasCompletadas >= 2 ? Colors.greenAccent : Colors.white10, borderRadius: BorderRadius.circular(10), boxShadow: [if(carrerasCompletadas>=2) const BoxShadow(color: Colors.greenAccent, blurRadius: 8)]))),
+              ],
+            ),
+            const SizedBox(height: 30),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (estaMidiendo || carrerasCompletadas >= 2) ? null : iniciarMedicion, 
+                    style: ElevatedButton.styleFrom(backgroundColor: colorTematico, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), 
+                    child: Text(carrerasCompletadas == 0 ? 'ARRANCAR CORRIDA 1' : 'ARRANCAR CORRIDA 2', style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: estaMidiendo ? () => detenerMedicion() : null, 
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), 
+                    child: const Text('ABORTAR / PARAR', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 25),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(onPressed: (estaMidiendo || carrerasCompletadas >= 2) ? null : iniciarMedicion, style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)), child: Text(carrerasCompletadas == 0 ? 'INICIAR TOMA 1' : 'INICIAR TOMA 2')),
-                ElevatedButton(onPressed: estaMidiendo ? () => detenerMedicion() : null, style: ElevatedButton.styleFrom(backgroundColor: Colors.red, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)), child: const Text('TERMINAR')),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            if (estaMidiendo) const Center(child: Text('Recibiendo flujo cinemático real...', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))),
+            if (estaMidiendo) 
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Center(child: Text('🛰️ EN LÍNEA: Streaming de matriz inercial activo...', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5))),
+              ),
 
             if (carrerasCompletadas == 2 && !estaMidiendo) ...[
-              ElevatedButton.icon(icon: const Icon(Icons.functions), style: ElevatedButton.styleFrom(backgroundColor: Colors.purple[700], padding: const EdgeInsets.all(15)), onPressed: () => setState(() => mostrarModuloResultadosGlobales = true), label: const Text('VER ANALÍTICA DE PRECISIÓN POLINÓMICA')),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.analytics_outlined), 
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.purpleAccent, foregroundColor: Colors.white, padding: const EdgeInsets.all(18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), 
+                onPressed: () => setState(() => mostrarModuloResultadosGlobales = true), 
+                label: const Text('DECODIFICAR PRECISIÓN POLINÓMICA', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+              ),
             ],
 
-            const Divider(height: 40),
+            const SizedBox(height: 20),
 
             if (mostrarModuloResultadosGlobales) ...[
-              Card(
-                color: Colors.grey[900],
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Colors.purpleAccent, width: 1.5)),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161824),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.purpleAccent.withOpacity(0.4), width: 1.5),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Center(child: Text('MODELO MULTI-PROMEDIO ADAPTABLE', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purpleAccent, fontSize: 16))),
-                      const SizedBox(height: 12),
-                      SizedBox(height: 220, width: double.infinity, child: CustomPaint(painter: GraficaPromedioPainter(datosPromedio: carreraPromedio, maximos: maximosLocales, minimos: minimosLocales))),
+                      const Center(child: Text('ANÁLISIS DE ENTORNO POLINÓMICO', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purpleAccent, fontSize: 14, letterSpacing: 2))),
                       const SizedBox(height: 20),
-                      SelectableText(ecuacionPromedio, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'monospace', color: Colors.amber)),
+                      SizedBox(
+                        height: 240, 
+                        width: double.infinity, 
+                        child: CustomPaint(painter: GraficaPromedioPainter(datosPromedio: carreraPromedio, maximos: maximosLocales, minimos: minimosLocales)),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(10)),
+                        width: double.infinity,
+                        child: SelectableText(ecuacionPromedio, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'monospace', color: Colors.amberAccent)),
+                      ),
                       const SizedBox(height: 15),
-                      Text(conclusionRendimiento, style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Colors.white70)),
-                      const SizedBox(height: 15),
-                      Text('Máximos (Picos): ${maximosLocales.isEmpty ? "0" : maximosLocales.map((m) => "(${m.x.toStringAsFixed(1)}s, ${m.y.toStringAsFixed(1)}m/s)").join(" | ")}', style: const TextStyle(fontSize: 12, color: Colors.greenAccent)),
-                      const SizedBox(height: 4),
-                      Text('Mínimos (Valles/Frenado): ${minimosLocales.isEmpty ? "0" : minimosLocales.map((m) => "(${m.x.toStringAsFixed(1)}s, ${m.y.toStringAsFixed(1)}m/s)").join(" | ")}', style: const TextStyle(fontSize: 12, color: Colors.redAccent)),
+                      Text(conclusionRendimiento, style: const TextStyle(fontSize: 13, height: 1.4, color: Colors.white70)),
+                      const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(color: Colors.white10)),
+                      Text('Picos (Máx): ${maximosLocales.isEmpty ? "Ninguno" : maximosLocales.map((m) => "(${m.x.toStringAsFixed(1)}s, ${m.y.toStringAsFixed(1)}m/s)").join(" | ")}', style: const TextStyle(fontSize: 11, color: Colors.greenAccent)),
+                      const SizedBox(height: 6),
+                      Text('Valles (Mín): ${minimosLocales.isEmpty ? "Ninguno" : minimosLocales.map((m) => "(${m.x.toStringAsFixed(1)}s, ${m.y.toStringAsFixed(1)}m/s)").join(" | ")}', style: const TextStyle(fontSize: 11, color: Colors.redAccent)),
                     ],
                   ),
                 ),
@@ -455,49 +595,76 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
             ],
 
             if (medicionActualTerminada && !mostrarModuloResultadosGlobales) ...[
-              const Center(child: Text("Haz click en la gráfica para analizar diferenciales:", style: TextStyle(fontSize: 11, color: Colors.white60))),
-              const SizedBox(height: 8),
+              const Center(child: Text("Toque cualquier cuadrante para evaluar derivadas locales:", style: TextStyle(fontSize: 12, color: Colors.white38))),
+              const SizedBox(height: 12),
               GestureDetector(
                 onTapDown: (details) => calcularDiferencialPorClick(details.localPosition.dx, context.size!.width - 40),
-                child: Container(height: 220, decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(10)), child: CustomPaint(painter: GraficaPainter(datos: datosCarreraActual, tiempoMarcado: tiempoSeleccionado))),
-              ),
-              if (tiempoSeleccionado != null) ...[
-                const SizedBox(height: 20),
-                Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(15.0),
-                    child: Column(
-                      children: [
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                          _buildDato(Icons.timer, 'Instante (t)', '${tiempoSeleccionado!.toStringAsFixed(2)}s', Colors.white),
-                          _buildDato(Icons.speed, 'v(t)', '${velocidadCalculada!.toStringAsFixed(2)} m/s', Colors.cyanAccent),
-                        ]),
-                        const SizedBox(height: 12),
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                          _buildDato(Icons.trending_up, 'Aceleración (dv/dt)', '${tasaCambioInstantanea!.toStringAsFixed(2)} m/s²', tasaCambioInstantanea! >= 0 ? Colors.greenAccent : Colors.redAccent),
-                          _buildDato(Icons.favorite, 'Frecuencia', pulsoActualString, widget.modo == 'TELEFONO' ? Colors.redAccent : Colors.pinkAccent),
-                        ]),
-                      ],
-                    ),
+                child: Container(
+                  height: 240, 
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161824), 
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: colorTematico.withOpacity(0.2)),
+                  ), 
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: CustomPaint(painter: GraficaPainter(datos: datosCarreraActual, tiempoMarcado: tiempoSeleccionado)),
                   ),
-                )
-              ]
-            ]
+                ),
+              ),
+              
+              if (tiempoSeleccionado != null) ...[
+                const SizedBox(height: 25),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: const Color(0xFF1A1D2E), borderRadius: BorderRadius.circular(20)),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround, 
+                        children: [
+                          _buildDatoVisual(Icons.timer_outlined, 'INSTANTE (t)', tiempoSeleccionado! >= 180 ? '${(tiempoSeleccionado! / 60).toStringAsFixed(2)} min' : '${tiempoSeleccionado!.toStringAsFixed(2)}s', Colors.white),
+                          _buildDatoVisual(Icons.speed_rounded, 'VELOCIDAD v(t)', '${velocidadCalculada!.toStringAsFixed(2)} m/s', Colors.cyanAccent),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround, 
+                        children: [
+                          _buildDatoVisual(Icons.trending_up_rounded, 'DERIVADA (dv/dt)', '${tasaCambioInstantanea!.toStringAsFixed(2)} m/s²', tasaCambioInstantanea! >= 0 ? Colors.greenAccent : Colors.redAccent),
+                          _buildDatoVisual(Icons.favorite_border_rounded, 'TELE-PULSO', pulsoActualString, Colors.pinkAccent),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDato(IconData i, String t, String v, Color c) => Column(children: [Icon(i, color: c, size: 20), const SizedBox(height: 4), Text(t, style: const TextStyle(fontSize: 11, color: Colors.white54)), Text(v, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: c))]);
+  Widget _buildDatoVisual(IconData i, String t, String v, Color c) {
+    return Column(
+      children: [
+        Icon(i, color: c, size: 24),
+        const SizedBox(height: 6),
+        Text(t, style: const TextStyle(fontSize: 10, letterSpacing: 1, color: Colors.white38)),
+        const SizedBox(height: 2),
+        Text(v, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: c)),
+      ],
+    );
+  }
 }
 
-// ==========================================
-// PINTORES GRÁFICOS (CUSTOM PAINTERS)
-// ==========================================
+// =========================================================================
+// CUSTOM PAINTERS CON FORMATO COMPATIBLE
+// =========================================================================
 class GraficaPainter extends CustomPainter {
-  final List<math.Point<double>> datos; final double? tiempoMarcado;
+  final List<math.Point<double>> datos; 
+  final double? tiempoMarcado;
   GraficaPainter({required this.datos, required this.tiempoMarcado});
   
   @override 
@@ -507,17 +674,40 @@ class GraficaPainter extends CustomPainter {
     double yMin = datos.map((p)=>p.y).reduce(math.min)-0.2;
     double yMax = datos.map((p)=>p.y).reduce(math.max)+0.5;
     
-    if (xMax <= xMin) xMax = xMin + 1; if (yMax <= yMin) yMax = yMin + 1;
+    if (xMax <= xMin) xMax = xMin + 1; 
+    if (yMax <= yMin) yMax = yMin + 1;
+    
     Offset mapP(math.Point<double> p) => Offset(((p.x-xMin)/(xMax-xMin))*size.width, size.height - ((p.y-yMin)/(yMax-yMin))*size.height);
     
+    final gridPaint = Paint()..color = Colors.white.withOpacity(0.03)..strokeWidth = 1;
+    for (int i = 1; i < 5; i++) {
+      double yLine = size.height * (i / 5);
+      canvas.drawLine(Offset(0, yLine), Offset(size.width, yLine), gridPaint);
+    }
+
     final path = Path()..moveTo(mapP(datos.first).dx, mapP(datos.first).dy);
-    for (var p in datos) { path.lineTo(mapP(p).dx, mapP(p).dy); }
+    for (var p in datos) {
+      path.lineTo(mapP(p).dx, mapP(p).dy);
+    }
+    canvas.drawPath(path, Paint()..color = Colors.cyanAccent..strokeWidth = 3..style = PaintingStyle.stroke);
     
-    canvas.drawPath(path, Paint()..color = Colors.cyan..strokeWidth = 3..style = PaintingStyle.stroke);
+    bool usarMinutos = xMax >= 180;
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
     
+    String etiquetaInicio = usarMinutos ? "0.0 min" : "0.0s";
+    String etiquetaFin = usarMinutos ? "${(xMax / 60).toStringAsFixed(1)} min" : "${xMax.toStringAsFixed(1)}s";
+
+    textPainter.text = TextSpan(text: etiquetaInicio, style: const TextStyle(color: Colors.white30, fontSize: 10));
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(5, size.height - 15));
+
+    textPainter.text = TextSpan(text: etiquetaFin, style: const TextStyle(color: Colors.white30, fontSize: 10));
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(size.width - textPainter.width - 5, size.height - 15));
+
     if (tiempoMarcado != null) {
       double xPos = ((tiempoMarcado!-xMin)/(xMax-xMin))*size.width;
-      canvas.drawLine(Offset(xPos, 0), Offset(xPos, size.height), Paint()..color=Colors.amber..strokeWidth=1.5);
+      canvas.drawLine(Offset(xPos, 0), Offset(xPos, size.height), Paint()..color=Colors.amberAccent..strokeWidth=1.5);
     }
   }
   @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
@@ -534,19 +724,40 @@ class GraficaPromedioPainter extends CustomPainter {
     double yMin = datosPromedio.map((p)=>p.y).reduce(math.min)-0.3;
     double yMax = datosPromedio.map((p)=>p.y).reduce(math.max)+0.5;
     
-    if (xMax <= xMin) xMax = xMin + 1; if (yMax <= yMin) yMax = yMin + 1;
+    if (xMax <= xMin) xMax = xMin + 1; 
+    if (yMax <= yMin) yMax = yMin + 1;
+    
     Offset mapP(math.Point<double> p) => Offset(((p.x-xMin)/(xMax-xMin))*size.width, size.height - ((p.y-yMin)/(yMax-yMin))*size.height);
     
+    final gridPaint = Paint()..color = Colors.white.withOpacity(0.03)..strokeWidth = 1;
+    for (int i = 1; i < 5; i++) {
+      double yLine = size.height * (i / 5);
+      canvas.drawLine(Offset(0, yLine), Offset(size.width, yLine), gridPaint);
+    }
+
     final path = Path()..moveTo(mapP(datosPromedio.first).dx, mapP(datosPromedio.first).dy);
-    for (var p in datosPromedio) { path.lineTo(mapP(p).dx, mapP(p).dy); }
+    for (var p in datosPromedio) {
+      path.lineTo(mapP(p).dx, mapP(p).dy);
+    }
+    canvas.drawPath(path, Paint()..color = Colors.purpleAccent..strokeWidth = 4..style = PaintingStyle.stroke);
     
-    canvas.drawPath(path, Paint()..color = Colors.purpleAccent..strokeWidth = 3.5..style = PaintingStyle.stroke);
-    
+    bool usarMinutos = xMax >= 180;
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    String etiquetaFin = usarMinutos ? "${(xMax / 60).toStringAsFixed(1)} min" : "${xMax.toStringAsFixed(1)}s";
+
+    textPainter.text = const TextSpan(text: "0.0s", style: TextStyle(color: Colors.white24, fontSize: 10));
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(5, size.height - 15));
+
+    textPainter.text = TextSpan(text: etiquetaFin, style: const TextStyle(color: Colors.white24, fontSize: 10));
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(size.width - textPainter.width - 5, size.height - 15));
+
     for (var m in maximos) { 
-      canvas.drawCircle(mapP(m), 5, Paint()..color=Colors.greenAccent..style=PaintingStyle.fill); 
+      canvas.drawCircle(mapP(m), 6, Paint()..color=Colors.greenAccent..style=PaintingStyle.fill); 
     }
     for (var m in minimos) { 
-      canvas.drawCircle(mapP(m), 5, Paint()..color=Colors.redAccent..style=PaintingStyle.fill); 
+      canvas.drawCircle(mapP(m), 6, Paint()..color=Colors.redAccent..style=PaintingStyle.fill); 
     }
   }
   @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
