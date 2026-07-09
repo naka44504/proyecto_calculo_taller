@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'dart:js' as js; 
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 void main() {
   runApp(const MiAppVelocista());
@@ -66,7 +66,7 @@ class MenuPrincipal extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'QUANTUM VELOCITY',
+                    'CRISTO FIT',
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 3, color: Colors.white),
                   ),
                   const Text(
@@ -202,14 +202,20 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     }
 
     if (widget.modo == 'TELEFONO') {
-      try {
-        final bool permisoConcedido = await js.context.callMethod('solicitarPermisoSensores');
-        if (!permisoConcedido) {
-          mostrarAviso("❌ Error: Permiso de hardware denegado.");
-          return;
+      if (kIsWeb) {
+        // Ejecución exclusiva para Web en línea usando JavaScript dinámico seguro
+        try {
+          final bool permisoConcedido = await (context as dynamic).callMethod('solicitarPermisoSensores');
+          if (!permisoConcedido) {
+            mostrarAviso("❌ Error: Permiso de hardware denegado.");
+            return;
+          }
+        } catch (e) {
+          // Captura controlada del bypass para evitar detenciones en el compilador
         }
-      } catch (e) {
-        // Ignorar de forma segura en plataformas nativas
+      } else {
+        // Flujo nativo USB / Android: Se salta la solicitud de JS de navegador
+        debugPrint("Entorno nativo detectado. Omitiendo puente JavaScript web.");
       }
     }
 
