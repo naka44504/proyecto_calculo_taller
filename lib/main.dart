@@ -202,8 +202,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     }
 
     if (widget.modo == 'TELEFONO' && kIsWeb) {
-      // --- PASO CRUCIAL PARA LA WEB EN VIVO ---
-      // Forzamos al navegador a despertar los sensores antes de cambiar el estado de la UI
       try {
         // ignore: undefined_prefixed_name
         final dynamic resultadoJS = await (context as dynamic).callMethod('solicitarPermisoSensores');
@@ -213,8 +211,11 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
           mostrarAviso("❌ Error: No se puede medir sin acceso a los sensores.");
           return;
         }
+        // Encendemos la grabadora directa de JavaScript
+        // ignore: undefined_prefixed_name
+        (context as dynamic).callMethod('iniciarCapturaWeb');
       } catch (e) {
-        debugPrint("Error al invocar el script de sensores: $e");
+        debugPrint("Error inicializando JS: $e");
       }
     }
 
@@ -231,8 +232,8 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     try {
       if (widget.modo == 'ESP32') {
         await _activarEscuchaESP32();
-      } else if (widget.modo == 'TELEFONO') {
-        // Activación del hardware real en tiempo real (tanto USB como Web)
+      } else if (widget.modo == 'TELEFONO' && !kIsWeb) {
+        // El modo USB sigue usando el hardware nativo tradicional perfectamente
         _activarEscuchaAcelerometro();
       }
     } catch (error) {
@@ -242,23 +243,37 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
   }
 
   void detenerMedicion({bool errorHardware = false}) {
-    if (suscripcionTelefonia != null) {
-      suscripcionTelefonia!.cancel();
-    }
-    if (suscripcionESP32 != null) {
-      suscripcionESP32!.cancel();
-    }
-    if (dispositivoESP32 != null) {
-      dispositivoESP32!.disconnect();
+    if (!kIsWeb) {
+      suscripcionTelefonia?.cancel();
+      suscripcionESP32?.cancel();
+      dispositivoESP32?.disconnect();
+    } else {
+      // --- EXTRACCIÓN DE DATOS REALES DE WEB DESDE JS ---
+      try {
+        // ignore: undefined_prefixed_name
+        (context as dynamic).callMethod('detenerCapturaWeb');
+        // ignore: undefined_prefixed_name
+        final dynamic listaJS = (context as dynamic).callMethod('datosSensoresWeb');
+        
+        if (listaJS != null) {
+          datosCarreraActual.clear();
+          for (var item in listaJS) {
+            double posX = (item['x'] as num).toDouble();
+            double posY = (item['y'] as num).toDouble();
+            datosCarreraActual.add(math.Point(posX, posY));
+          }
+        }
+      } catch (e) {
+        debugPrint("Error extrayendo datos de JS: $e");
+      }
     }
     
     setState(() {
       estaMidiendo = false;
       
-      // Verificamos si capturó datos reales. Si está vacío, te avisa en lugar de congelarse.
       if (!errorHardware) {
         if (datosCarreraActual.length < 2) {
-          mostrarAviso("⚠️ No se registraron suficientes movimientos físicos. Mueve el teléfono.");
+          mostrarAviso("⚠️ No se registraron datos reales. Asegúrate de mover el teléfono con el enlace.");
           return;
         }
 
@@ -267,10 +282,10 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
         
         if (carrerasCompletadas == 1) {
           datosCarrera1 = List.from(datosCarreraActual);
-          mostrarAviso("✅ Carrera 1 guardada con datos reales.");
+          mostrarAviso("✅ Carrera 1 guardada con datos reales de la Web.");
         } else if (carrerasCompletadas == 2) {
           datosCarrera2 = List.from(datosCarreraActual);
-          mostrarAviso("✅ Carrera 2 guardada. Modelando...");
+          mostrarAviso("✅ Carrera 2 guardada. Modelando polinomio...");
           _ejecutarModeladoPolinomialDinamico();
         }
       }
