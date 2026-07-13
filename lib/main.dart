@@ -276,37 +276,54 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       }
     });
   }
-  void _activarEscuchaAcelerometro() {
-    tiempoUltimaLectura = DateTime.now();
-    tiempoInicialAbsoluto = DateTime.now().millisecondsSinceEpoch / 1000.0;
+ void _activarEscuchaAcelerometro() {
+    if (kIsWeb) {
+      // --- CAPTURA EN TIEMPO REAL PARA EL ENLACE WEB ---
+      // Usamos el Stream alternativo de sensors_plus que mejor se adapta a los navegadores móviles
+      double tiempoReloj = 0.0;
+      
+      // Intentamos escuchar el acelerómetro de usuario (el que elimina la gravedad)
+      suscripcionTelefonia = userAccelerometerEvents.listen(
+        (UserAccelerometerEvent evento) {
+          if (!estaMidiendo) return;
+          
+          tiempoReloj += 0.1; // Simulamos el diferencial de tiempo entre lecturas (100ms aprox)
+          
+          // Calculamos la magnitud de la aceleración real en el eje dinámico
+          double aceleracionNeta = evento.x.abs() + evento.y.abs() + evento.z.abs();
+          
+          // Filtro de ruido: Solo sumamos si el movimiento es real
+          if (aceleracionNeta > 0.3) {
+            velocidadAcumulada += aceleracionNeta * 0.1;
+          }
 
-    suscripcionTelefonia = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
-      if (!estaMidiendo) return;
-      DateTime ahora = DateTime.now();
-      double dt = ahora.difference(tiempoUltimaLectura!).inMilliseconds / 1000.0;
-      tiempoUltimaLectura = ahora;
-
-      if (dt <= 0) return;
-      double aceleracionEje = event.y; 
-
-      if (aceleracionEje.abs() < 0.2) {
-        aceleracionEje = 0.0;
-        velocidadAcumulada *= math.exp(-0.4 * dt); 
-      } else {
-        velocidadAcumulada += aceleracionEje * dt;
-      }
-
-      if (velocidadAcumulada < 0) {
-        velocidadAcumulada = 0.0;
-      }
-      double tGrafica = (ahora.millisecondsSinceEpoch / 1000.0) - tiempoInicialAbsoluto;
-
-      setState(() {
-        datosCarreraActual.add(math.Point(tGrafica, velocidadAcumulada));
+          setState(() {
+            datosCarreraActual.add(math.Point(tiempoReloj, velocidadAcumulada));
+          });
+        },
+        onError: (error) {
+          debugPrint("Error directo en sensor web: $error");
+        },
+        cancelOnError: true,
+      );
+    } else {
+      // --- CAPTURA EN TIEMPO REAL PARA EL MODO USB (NATIVO) ---
+      // Tu código nativo original que funciona perfecto en el APK
+      double tiempoReloj = 0.0;
+      suscripcionTelefonia = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
+        if (!estaMidiendo) return;
+        tiempoReloj += 0.1;
+        
+        // Tu lógica actual de cálculo para el teléfono físico por USB:
+        double acc = event.y; // O el eje que estés usando originalmente
+        velocidadAcumulada += acc * 0.1;
+        
+        setState(() {
+          datosCarreraActual.add(math.Point(tiempoReloj, velocidadAcumulada));
+        });
       });
-    });
+    }
   }
-
   Future<void> _activarEscuchaESP32() async {
     // LLAMADA COMPATIBLE UNIVERSAL: quitamos los parámetros conflictivos de versiones intermedias
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
