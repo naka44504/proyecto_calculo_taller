@@ -201,19 +201,20 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       return;
     }
 
-    if (widget.modo == 'TELEFONO') {
-      if (kIsWeb) {
-        // Ejecución exclusiva para Web: Usamos 'ui_web' o llamadas seguras sin romper el APK nativo
-        try {
-          // Bypass directo: En los navegadores móviles modernos llamamos directo a la API de sensores
-          // de Flutter, evitando intermediarios dinámicos que congelen el hilo principal
-          debugPrint("Iniciando sensores en entorno Web...");
-        } catch (e) {
-          // Captura controlada del bypass para evitar detenciones en el compilador
+    if (widget.modo == 'TELEFONO' && kIsWeb) {
+      // --- PASO CRUCIAL PARA LA WEB EN VIVO ---
+      // Forzamos al navegador a despertar los sensores antes de cambiar el estado de la UI
+      try {
+        // ignore: undefined_prefixed_name
+        final dynamic resultadoJS = await (context as dynamic).callMethod('solicitarPermisoSensores');
+        final bool permisoConcedido = resultadoJS ?? false;
+        
+        if (!permisoConcedido) {
+          mostrarAviso("❌ Error: No se puede medir sin acceso a los sensores.");
+          return;
         }
-      } else {
-        // Flujo nativo USB / Android: Se salta la solicitud de JS de navegador
-        debugPrint("Entorno nativo detectado. Omitiendo puente JavaScript web.");
+      } catch (e) {
+        debugPrint("Error al invocar el script de sensores: $e");
       }
     }
 
@@ -231,6 +232,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       if (widget.modo == 'ESP32') {
         await _activarEscuchaESP32();
       } else if (widget.modo == 'TELEFONO') {
+        // Activación del hardware real en tiempo real (tanto USB como Web)
         _activarEscuchaAcelerometro();
       }
     } catch (error) {
@@ -252,15 +254,23 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     
     setState(() {
       estaMidiendo = false;
-      // Eliminamos temporalmente la restricción de longitud estricta en web para evitar bloqueos por falta de hardware continuo
+      
+      // Verificamos si capturó datos reales. Si está vacío, te avisa en lugar de congelarse.
       if (!errorHardware) {
+        if (datosCarreraActual.length < 2) {
+          mostrarAviso("⚠️ No se registraron suficientes movimientos físicos. Mueve el teléfono.");
+          return;
+        }
+
         medicionActualTerminada = true; 
         carrerasCompletadas++;
         
         if (carrerasCompletadas == 1) {
           datosCarrera1 = List.from(datosCarreraActual);
+          mostrarAviso("✅ Carrera 1 guardada con datos reales.");
         } else if (carrerasCompletadas == 2) {
           datosCarrera2 = List.from(datosCarreraActual);
+          mostrarAviso("✅ Carrera 2 guardada. Modelando...");
           _ejecutarModeladoPolinomialDinamico();
         }
       }
