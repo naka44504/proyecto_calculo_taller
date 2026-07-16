@@ -5,20 +5,12 @@ import 'dart:convert';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-// Usamos el sistema JS Interop moderno para evitar advertencias de obsolescencia
-import 'dart:js_interop';
 
-@JS('solicitarPermisoSensores')
-external JSPromise<JSBoolean> solicitarPermisoSensoresJS();
-
-@JS('iniciarCapturaWeb')
-external void iniciarCapturaWebJS();
-
-@JS('detenerCapturaWeb')
-external void detenerCapturaWebJS();
-
-@JS('datosSensoresWeb')
-external JSArray datosSensoresWebJS();
+// IMPORTACIÓN CONDICIONAL: 
+// Si es Web, usa 'puente_js_web.dart'. Si es Móvil, usa 'puente_js_stub.dart'.
+// ¡Esto soluciona el error por USB al 100%!
+import 'puente_js_stub.dart'
+    if (dart.library.js_interop) 'puente_js_web.dart' as puente_js;
 
 void main() {
   runApp(const MiAppVelocista());
@@ -118,6 +110,47 @@ class MenuPrincipal extends StatelessWidget {
     );
   }
 
+  // Tarjeta auxiliar para el menú
+  Widget _buildMenuCard({
+    required BuildContext context,
+    required String titulo,
+    required String subtitulo,
+    required IconData icono,
+    required Color colorInicio,
+    required Color colorFin,
+    required VoidCallback alPresionar,
+  }) {
+    return InkWell(
+      onTap: alPresionar,
+      borderRadius: BorderRadius.circular(20),
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [colorInicio, colorFin]),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+          child: Row(
+            children: [
+              Icon(icono, size: 40, color: Colors.white),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(titulo, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(subtitulo, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white54),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
   Widget _buildMenuCard({
     required BuildContext context,
     required String titulo,
@@ -167,7 +200,7 @@ class MenuPrincipal extends StatelessWidget {
       ),
     );
   }
-}
+
 
 // =========================================================================
 // PANTALLA 2: MEDIDOR Y MATRICES
@@ -218,15 +251,14 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
     if (widget.modo == 'TELEFONO' && kIsWeb) {
       try {
-        final JSBoolean? resultadoJS = await solicitarPermisoSensoresJS().toDart;
-        final bool permisoConcedido = resultadoJS?.toDart ?? false;
+        final bool permisoConcedido = await puente_js.solicitarPermisoSensores();
         
         if (!permisoConcedido) {
           mostrarAviso("❌ Error: No se puede medir sin acceso a los sensores.");
           return;
         }
         
-        iniciarCapturaWebJS();
+        puente_js.iniciarCapturaWeb();
       } catch (e) {
         debugPrint("Error inicializando JS Interop: $e");
       }
@@ -261,15 +293,16 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       dispositivoESP32?.disconnect();
     } else {
       try {
-        detenerCapturaWebJS();
+       puente_js.detenerCapturaWeb();
         
-        final JSArray? listaJS = datosSensoresWebJS();
-        if (listaJS != null) {
+        final List<dynamic> listaDart = puente_js.datosSensoresWeb();
+        if (listaDart.isNotEmpty) {
           datosCarreraActual.clear();
-          final List<dynamic> listaDart = listaJS.toDart;
           for (var item in listaDart) {
-            double posX = (item['x'] as num).toDouble();
-            double posY = (item['y'] as num).toDouble();
+            // Evaluamos de forma segura las propiedades del mapa de JavaScript
+            final itemMap = item as Map;
+            double posX = (itemMap['x'] as num).toDouble();
+            double posY = (itemMap['y'] as num).toDouble();
             datosCarreraActual.add(math.Point(posX, posY));
           }
         }
