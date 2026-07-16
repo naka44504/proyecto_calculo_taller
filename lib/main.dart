@@ -79,8 +79,8 @@ class MenuPrincipal extends StatelessWidget {
                   
                   _buildMenuCard(
                     context: context,
-                    titulo: 'Modo ESP32 (Bluetooth)',
-                    subtitulo: 'Sincronización externa con sensor MAX30102',
+                    titulo: 'Modo (Bluetooth)',
+                    subtitulo: 'Sincronización externa con sensores',
                     icono: Icons.bluetooth_connected,
                     colorInicio: const Color(0xFF1A2980),
                     colorFin: const Color(0xFF26D0CE),
@@ -486,7 +486,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     double variabilidadRitmo = 0.0;
     if (maximosLocales.isNotEmpty) {
       double promMaximos = maximosLocales.map((m) => m.y).reduce((a, b) => a + b) / maximosLocales.length;
-      double sumaVarianza = maximosLocales.map((m) => math.pow(m.y - promMaximos, 2)).reduce((a, b) => a + b);
+      double sumaVarianza = maximosLocales.map((m) => math.pow(m.y - promMaximos, 2)).reduce((a, b) => a + b).toDouble();
       variabilidadRitmo = math.sqrt(sumaVarianza / maximosLocales.length);
     }
 
