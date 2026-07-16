@@ -875,3 +875,5 @@ class GraficaPromedioPainter extends CustomPainter {
   }
   @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+//comando para despliegue en linea:
+// flutter build web --release
