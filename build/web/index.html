@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  
+  <meta name="description" content="A new Flutter project.">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="proyecto_calculo_taller">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>proyecto_calculo_taller</title>
+  
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+  <script>
+    // Creamos una función global en la ventana del navegador ('window') llamada 'solicitarPermisoSensores'
+    window.solicitarPermisoSensores = function() {
+      // Retornamos una promesa para que Flutter sepa cuándo termina la solicitud
+      return new Promise((resolve, reject) => {
+        // Evaluamos si el navegador actual maneja la API moderna de petición de permisos (iOS y Chrome estricto)
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          
+          // Disparamos la ventana emergente nativa pidiendo acceso al acelerómetro/giroscopio
+          DeviceOrientationEvent.requestPermission()
+            .then(estadoPermiso => {
+              // Si el usuario presiona 'Permitir', resolvemos como verdadero (true)
+              if (estadoPermiso === 'granted') {
+                console.log("🎯 Permiso de sensores concedido nativamente.");
+                resolve(true);
+              } else {
+                console.log("❌ Permiso de sensores denegado por el usuario.");
+                resolve(false);
+              }
+            })
+            .catch(error => {
+              console.error("⚠️ Error interno al solicitar permisos:", error);
+              reject(error);
+            });
+            
+        } else {
+          // Si el navegador es antiguo o no requiere permisos explícitos (Android estándar), devolvemos true directo
+          console.log("🚀 El navegador no requiere permisos explícitos. Acceso libre.");
+          resolve(true);
+        }
+      });
+    };
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
