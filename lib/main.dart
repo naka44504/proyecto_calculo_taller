@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+// Librería oficial para interactuar de forma segura con el entorno JavaScript de la Web
+import 'dart:js' as js;
 
 void main() {
   runApp(const MiAppVelocista());
@@ -56,7 +58,7 @@ class MenuPrincipal extends StatelessWidget {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.blue.withOpacity(0.2), // Regresado a withOpacity tradicional por compatibilidad de versión SDK
+                          color: Colors.blue.withOpacity(0.2), 
                           blurRadius: 40, 
                           spreadRadius: 10
                         )
@@ -203,17 +205,20 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
     if (widget.modo == 'TELEFONO' && kIsWeb) {
       try {
-        // ignore: undefined_prefixed_name
-        final dynamic resultadoJS = await (context as dynamic).callMethod('solicitarPermisoSensores');
-        final bool permisoConcedido = resultadoJS ?? false;
-        
-        if (!permisoConcedido) {
-          mostrarAviso("❌ Error: No se puede medir sin acceso a los sensores.");
-          return;
+        // Validación del objeto global context en Dart/JS Interop para navegadores
+        if (js.context.hasProperty('solicitarPermisoSensores')) {
+          final dynamic resultadoJS = await js.context.callMethod('solicitarPermisoSensores');
+          final bool permisoConcedido = resultadoJS ?? false;
+          
+          if (!permisoConcedido) {
+            mostrarAviso("❌ Error: No se puede medir sin acceso a los sensores.");
+            return;
+          }
         }
-        // Encendemos la grabadora directa de JavaScript
-        // ignore: undefined_prefixed_name
-        (context as dynamic).callMethod('iniciarCapturaWeb');
+        
+        if (js.context.hasProperty('iniciarCapturaWeb')) {
+          js.context.callMethod('iniciarCapturaWeb');
+        }
       } catch (e) {
         debugPrint("Error inicializando JS: $e");
       }
@@ -232,8 +237,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     try {
       if (widget.modo == 'ESP32') {
         await _activarEscuchaESP32();
-      } else if (widget.modo == 'TELEFONO' && !kIsWeb) {
-        // El modo USB sigue usando el hardware nativo tradicional perfectamente
+      } else if (widget.modo == 'TELEFONO') {
         _activarEscuchaAcelerometro();
       }
     } catch (error) {
@@ -249,17 +253,20 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       dispositivoESP32?.disconnect();
     } else {
       try {
-        // ignore: undefined_prefixed_name
-        (context as dynamic).callMethod('detenerCapturaWeb');
-        // ignore: undefined_prefixed_name
-        final dynamic listaJS = (context as dynamic).callMethod('datosSensoresWeb');
+        if (js.context.hasProperty('detenerCapturaWeb')) {
+          js.context.callMethod('detenerCapturaWeb');
+        }
         
-        if (listaJS != null) {
-          datosCarreraActual.clear();
-          for (var item in listaJS) {
-            double posX = (item['x'] as num).toDouble();
-            double posY = (item['y'] as num).toDouble();
-            datosCarreraActual.add(math.Point(posX, posY));
+        if (js.context.hasProperty('datosSensoresWeb')) {
+          final dynamic listaJS = js.context.callMethod('datosSensoresWeb');
+          
+          if (listaJS != null) {
+            datosCarreraActual.clear();
+            for (var item in listaJS) {
+              double posX = (item['x'] as num).toDouble();
+              double posY = (item['y'] as num).toDouble();
+              datosCarreraActual.add(math.Point(posX, posY));
+            }
           }
         }
       } catch (e) {
@@ -271,7 +278,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       estaMidiendo = false;
       
       if (!errorHardware) {
-        // Volvemos a exigir que existan datos reales obligatoriamente
         if (datosCarreraActual.length < 2) {
           mostrarAviso("⚠️ No se registraron datos reales del acelerómetro. Mueve el teléfono.");
           return;
@@ -291,25 +297,31 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       }
     });
   }
- void _activarEscuchaAcelerometro() {
+
+  void _activarEscuchaAcelerometro() {
+    double tiempoReloj = 0.0;
+    tiempoUltimaLectura = DateTime.now();
+
     if (kIsWeb) {
       // --- CAPTURA EN TIEMPO REAL PARA EL ENLACE WEB ---
-      // Usamos el Stream alternativo de sensors_plus que mejor se adapta a los navegadores móviles
-      double tiempoReloj = 0.0;
-      
-      // Intentamos escuchar el acelerómetro de usuario (el que elimina la gravedad)
-      suscripcionTelefonia = userAccelerometerEvents.listen(
+      suscripcionTelefonia = userAccelerometerEventStream().listen(
         (UserAccelerometerEvent evento) {
           if (!estaMidiendo) return;
           
-          tiempoReloj += 0.1; // Simulamos el diferencial de tiempo entre lecturas (100ms aprox)
+          final ahora = DateTime.now();
+          final dt = ahora.difference(tiempoUltimaLectura!).inMilliseconds / 1000.0;
+          tiempoUltimaLectura = ahora;
+          tiempoReloj += dt;
           
-          // Calculamos la magnitud de la aceleración real en el eje dinámico
+          // Magnitud de la aceleración real 3D
           double aceleracionNeta = evento.x.abs() + evento.y.abs() + evento.z.abs();
           
-          // Filtro de ruido: Solo sumamos si el movimiento es real
-          if (aceleracionNeta > 0.3) {
-            velocidadAcumulada += aceleracionNeta * 0.1;
+          // Filtro pasa-altos dinámico
+          if (aceleracionNeta > 0.35) {
+            velocidadAcumulada += aceleracionNeta * dt;
+          } else {
+            // Decaimiento exponencial para simular reposo progresivo
+            velocidadAcumulada *= math.exp(-0.8 * dt);
           }
 
           setState(() {
@@ -322,16 +334,22 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
         cancelOnError: true,
       );
     } else {
-      // --- CAPTURA EN TIEMPO REAL PARA EL MODO USB (NATIVO) ---
-      // Tu código nativo original que funciona perfecto en el APK
-      double tiempoReloj = 0.0;
-      suscripcionTelefonia = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
+      // --- CAPTURA EN TIEMPO REAL NATIVA (USB) ---
+      suscripcionTelefonia = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
         if (!estaMidiendo) return;
-        tiempoReloj += 0.1;
         
-        // Tu lógica actual de cálculo para el teléfono físico por USB:
-        double acc = event.y; // O el eje que estés usando originalmente
-        velocidadAcumulada += acc * 0.1;
+        final ahora = DateTime.now();
+        final dt = ahora.difference(tiempoUltimaLectura!).inMilliseconds / 1000.0;
+        tiempoUltimaLectura = ahora;
+        tiempoReloj += dt;
+        
+        double acc = event.y; 
+        if (acc.abs() < 0.2) acc = 0.0; // Filtro de ruido nativo
+        velocidadAcumulada += acc * dt;
+        
+        if (velocidadAcumulada < 0) {
+          velocidadAcumulada = 0.0;
+        }
         
         setState(() {
           datosCarreraActual.add(math.Point(tiempoReloj, velocidadAcumulada));
@@ -339,8 +357,8 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       });
     }
   }
+
   Future<void> _activarEscuchaESP32() async {
-    // LLAMADA COMPATIBLE UNIVERSAL: quitamos los parámetros conflictivos de versiones intermedias
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
     
     FlutterBluePlus.scanResults.listen((results) async {
@@ -457,15 +475,56 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       }
     }
 
+    // =========================================================================
+    // MOTOR DE CONCLUSIONES CINEMÁTICAS CLÍNICAS (MÁXIMA PRECISIÓN)
+    // =========================================================================
+    double velocidadMaxima = carreraPromedio.map((p) => p.y).reduce(math.max);
+    double velocidadFinal = carreraPromedio.last.y;
+    double factorDesaceleracion = (velocidadMaxima > 0) ? (1.0 - (velocidadFinal / velocidadMaxima)) : 0.0;
+    
+    // Cálculo de la variabilidad del ritmo (desviación estándar de los picos de velocidad)
+    double variabilidadRitmo = 0.0;
+    if (maximosLocales.isNotEmpty) {
+      double promMaximos = maximosLocales.map((m) => m.y).reduce((a, b) => a + b) / maximosLocales.length;
+      double sumaVarianza = maximosLocales.map((m) => math.pow(m.y - promMaximos, 2)).reduce((a, b) => a + b);
+      variabilidadRitmo = math.sqrt(sumaVarianza / maximosLocales.length);
+    }
+
+    String diagnosticoRitmo = "";
+    String mejora = "";
+
+    if (totalExtremos >= 5) {
+      diagnosticoRitmo = "Ritmo inestable y sumamente fraccionado (Señal asimétrica compleja). Se registraron $totalExtremos fluctuaciones en la zancada.";
+      mejora = "Debes trabajar en la rigidez del core y la alineación pélvica para evitar la pérdida de energía lateral. Realiza drills de frecuencia de zancada con metrónomo.";
+    } else if (totalExtremos >= 3) {
+      diagnosticoRitmo = "Ritmo con oscilaciones cíclicas moderadas. Se observa una transición reactiva pero con ligeros baches en el apoyo.";
+      mejora = "Ejecuta entrenamientos de fuerza reactiva (pliometría) para disminuir el tiempo de contacto con el suelo y estabilizar la fase de amortiguación.";
+    } else {
+      diagnosticoRitmo = "Transición fluida, uniforme y balística de velocidad. Ritmo de carrera altamente lineal y limpio.";
+      mejora = "Tu eficiencia mecánica es excelente. Para incrementar la velocidad punta, enfócate en la potencia de empuje en la fase de despegue.";
+    }
+
+    // Análisis del factor de fatiga y pérdida tardía
+    String analisisFatiga = "";
+    if (factorDesaceleracion > 0.25) {
+      analisisFatiga = " Caída crítica de velocidad del ${(factorDesaceleracion * 100).toStringAsFixed(1)}% en el tercio final de la carrera.";
+      mejora += " Incorpora series de resistencia láctica y velocidad asistida para tolerar la fatiga neuromuscular tardía.";
+    } else if (factorDesaceleracion > 0.10) {
+      analisisFatiga = " Desaceleración moderada del ${(factorDesaceleracion * 100).toStringAsFixed(1)}% en la fase terminal.";
+      mejora += " Optimiza tu zancada en fatiga enfocándote en mantener los hombros relajados y el braceo activo en los metros finales.";
+    } else {
+      analisisFatiga = " Excelente conservación de velocidad terminal (${(velocidadFinal).toStringAsFixed(1)} m/s). Pérdida por fatiga casi nula.";
+    }
+
+    String diagnosticoFinal = "📊 INFORME TÉCNICO CRISTO-FIT:\n\n"
+        "• RENDIMIENTO GENERAL: $diagnosticoRitmo\n"
+        "• ÍNDICE DE FATIGA:$analisisFatiga\n"
+        "• DESVIACIÓN DE RITMO (Picos): ${variabilidadRitmo.toStringAsFixed(3)} m/s.\n\n"
+        "💡 OPORTUNIDADES DE MEJORA:\n$mejora";
+
     setState(() {
       ecuacionPromedio = buildEcuacion;
-      if (gradoOptimal >= 4) {
-        conclusionRendimiento = "Modelado Adaptable (Grado $gradoOptimal). Se detectaron asimetrías críticas en $totalExtremos extremos. Pérdida por fatiga detectable.";
-      } else if (gradoOptimal == 3) {
-        conclusionRendimiento = "Ajuste Cúbico (Grado 3). Aceleración estable seguida de meseta cinemática controlada.";
-      } else {
-        conclusionRendimiento = "Ajuste Parabólico (Grado 2). Trayectoria balística regular sin anomalías de zancada.";
-      }
+      conclusionRendimiento = diagnosticoFinal;
     });
   }
 
@@ -537,7 +596,15 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     });
   }
 
-  void mostrarAviso(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: Colors.red[800]));
+  void mostrarAviso(String m) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(m), 
+        backgroundColor: const Color(0xFF161824),
+        behavior: SnackBarBehavior.floating,
+      )
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
