@@ -248,7 +248,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       suscripcionESP32?.cancel();
       dispositivoESP32?.disconnect();
     } else {
-      // --- EXTRACCIÓN DE DATOS REALES DE WEB DESDE JS ---
       try {
         // ignore: undefined_prefixed_name
         (context as dynamic).callMethod('detenerCapturaWeb');
@@ -272,8 +271,9 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       estaMidiendo = false;
       
       if (!errorHardware) {
+        // Volvemos a exigir que existan datos reales obligatoriamente
         if (datosCarreraActual.length < 2) {
-          mostrarAviso("⚠️ No se registraron datos reales. Asegúrate de mover el teléfono con el enlace.");
+          mostrarAviso("⚠️ No se registraron datos reales del acelerómetro. Mueve el teléfono.");
           return;
         }
 
@@ -282,7 +282,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
         
         if (carrerasCompletadas == 1) {
           datosCarrera1 = List.from(datosCarreraActual);
-          mostrarAviso("✅ Carrera 1 guardada con datos reales de la Web.");
+          mostrarAviso("✅ Carrera 1 guardada con datos reales.");
         } else if (carrerasCompletadas == 2) {
           datosCarrera2 = List.from(datosCarreraActual);
           mostrarAviso("✅ Carrera 2 guardada. Modelando polinomio...");
