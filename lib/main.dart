@@ -5,8 +5,20 @@ import 'dart:convert';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-// Librería oficial para interactuar de forma segura con el entorno JavaScript de la Web
-import 'dart:js' as js;
+// Usamos el sistema JS Interop moderno para evitar advertencias de obsolescencia
+import 'dart:js_interop';
+
+@JS('solicitarPermisoSensores')
+external JSPromise<JSBoolean> solicitarPermisoSensoresJS();
+
+@JS('iniciarCapturaWeb')
+external void iniciarCapturaWebJS();
+
+@JS('detenerCapturaWeb')
+external void detenerCapturaWebJS();
+
+@JS('datosSensoresWeb')
+external JSArray datosSensoresWebJS();
 
 void main() {
   runApp(const MiAppVelocista());
@@ -196,6 +208,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
   List<math.Point<double>> minimosLocales = [];
   String ecuacionPromedio = "";
   String conclusionRendimiento = "";
+  String conclusionesCalorias = "";
 
   Future<void> iniciarMedicion() async {
     if (carrerasCompletadas >= 2) {
@@ -205,22 +218,17 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
 
     if (widget.modo == 'TELEFONO' && kIsWeb) {
       try {
-        // Validación del objeto global context en Dart/JS Interop para navegadores
-        if (js.context.hasProperty('solicitarPermisoSensores')) {
-          final dynamic resultadoJS = await js.context.callMethod('solicitarPermisoSensores');
-          final bool permisoConcedido = resultadoJS ?? false;
-          
-          if (!permisoConcedido) {
-            mostrarAviso("❌ Error: No se puede medir sin acceso a los sensores.");
-            return;
-          }
+        final JSBoolean? resultadoJS = await solicitarPermisoSensoresJS().toDart;
+        final bool permisoConcedido = resultadoJS?.toDart ?? false;
+        
+        if (!permisoConcedido) {
+          mostrarAviso("❌ Error: No se puede medir sin acceso a los sensores.");
+          return;
         }
         
-        if (js.context.hasProperty('iniciarCapturaWeb')) {
-          js.context.callMethod('iniciarCapturaWeb');
-        }
+        iniciarCapturaWebJS();
       } catch (e) {
-        debugPrint("Error inicializando JS: $e");
+        debugPrint("Error inicializando JS Interop: $e");
       }
     }
 
@@ -253,24 +261,20 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       dispositivoESP32?.disconnect();
     } else {
       try {
-        if (js.context.hasProperty('detenerCapturaWeb')) {
-          js.context.callMethod('detenerCapturaWeb');
-        }
+        detenerCapturaWebJS();
         
-        if (js.context.hasProperty('datosSensoresWeb')) {
-          final dynamic listaJS = js.context.callMethod('datosSensoresWeb');
-          
-          if (listaJS != null) {
-            datosCarreraActual.clear();
-            for (var item in listaJS) {
-              double posX = (item['x'] as num).toDouble();
-              double posY = (item['y'] as num).toDouble();
-              datosCarreraActual.add(math.Point(posX, posY));
-            }
+        final JSArray? listaJS = datosSensoresWebJS();
+        if (listaJS != null) {
+          datosCarreraActual.clear();
+          final List<dynamic> listaDart = listaJS.toDart;
+          for (var item in listaDart) {
+            double posX = (item['x'] as num).toDouble();
+            double posY = (item['y'] as num).toDouble();
+            datosCarreraActual.add(math.Point(posX, posY));
           }
         }
       } catch (e) {
-        debugPrint("Error extrayendo datos de JS: $e");
+        debugPrint("Error extrayendo datos de JS Interop: $e");
       }
     }
     
@@ -303,7 +307,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     tiempoUltimaLectura = DateTime.now();
 
     if (kIsWeb) {
-      // --- CAPTURA EN TIEMPO REAL PARA EL ENLACE WEB ---
       suscripcionTelefonia = userAccelerometerEventStream().listen(
         (UserAccelerometerEvent evento) {
           if (!estaMidiendo) return;
@@ -313,14 +316,11 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
           tiempoUltimaLectura = ahora;
           tiempoReloj += dt;
           
-          // Magnitud de la aceleración real 3D
           double aceleracionNeta = evento.x.abs() + evento.y.abs() + evento.z.abs();
           
-          // Filtro pasa-altos dinámico
           if (aceleracionNeta > 0.35) {
             velocidadAcumulada += aceleracionNeta * dt;
           } else {
-            // Decaimiento exponencial para simular reposo progresivo
             velocidadAcumulada *= math.exp(-0.8 * dt);
           }
 
@@ -334,7 +334,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
         cancelOnError: true,
       );
     } else {
-      // --- CAPTURA EN TIEMPO REAL NATIVA (USB) ---
       suscripcionTelefonia = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
         if (!estaMidiendo) return;
         
@@ -344,7 +343,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
         tiempoReloj += dt;
         
         double acc = event.y; 
-        if (acc.abs() < 0.2) acc = 0.0; // Filtro de ruido nativo
+        if (acc.abs() < 0.2) acc = 0.0; 
         velocidadAcumulada += acc * dt;
         
         if (velocidadAcumulada < 0) {
@@ -482,7 +481,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
     double velocidadFinal = carreraPromedio.last.y;
     double factorDesaceleracion = (velocidadMaxima > 0) ? (1.0 - (velocidadFinal / velocidadMaxima)) : 0.0;
     
-    // Cálculo de la variabilidad del ritmo (desviación estándar de los picos de velocidad)
     double variabilidadRitmo = 0.0;
     if (maximosLocales.isNotEmpty) {
       double promMaximos = maximosLocales.map((m) => m.y).reduce((a, b) => a + b) / maximosLocales.length;
@@ -504,7 +502,6 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       mejora = "Tu eficiencia mecánica es excelente. Para incrementar la velocidad punta, enfócate en la potencia de empuje en la fase de despegue.";
     }
 
-    // Análisis del factor de fatiga y pérdida tardía
     String analisisFatiga = "";
     if (factorDesaceleracion > 0.25) {
       analisisFatiga = " Caída crítica de velocidad del ${(factorDesaceleracion * 100).toStringAsFixed(1)}% en el tercio final de la carrera.";
@@ -516,15 +513,51 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       analisisFatiga = " Excelente conservación de velocidad terminal (${(velocidadFinal).toStringAsFixed(1)} m/s). Pérdida por fatiga casi nula.";
     }
 
+    // =========================================================================
+    // NÚCLEO DE ESTIMACIÓN DE CALORÍAS POR INTERVALOS DE PESO
+    // =========================================================================
+    double duracionTotalSegundos = limiteTiempo;
+    double velocidadMediaMS = carreraPromedio.map((p) => p.y).reduce((a, b) => a + b) / carreraPromedio.length;
+    double velocidadMediaKmh = velocidadMediaMS * 3.6;
+    
+    double met = 1.0;
+    if (velocidadMediaKmh < 4.0) {
+      met = 2.5; 
+    } else if (velocidadMediaKmh < 5.5) {
+      met = 3.5; 
+    } else if (velocidadMediaKmh < 7.0) {
+      met = 5.0; 
+    } else if (velocidadMediaKmh < 9.0) {
+      met = 8.3; 
+    } else if (velocidadMediaKmh < 11.5) {
+      met = 11.0; 
+    } else {
+      met = 13.5; 
+    }
+
+    double duracionMinutos = duracionTotalSegundos / 60.0;
+    
+    // Ecuación Metabólica ACSM adaptada por rangos de peso
+    double calRango1 = ((met * 3.5 * 55.0) / 200.0) * duracionMinutos; // Promedio 50-60kg
+    double calRango2 = ((met * 3.5 * 65.0) / 200.0) * duracionMinutos; // Promedio 60-70kg
+    double calRango3 = ((met * 3.5 * 75.0) / 200.0) * duracionMinutos; // Promedio 70-80kg
+
     String diagnosticoFinal = "📊 INFORME TÉCNICO CRISTO-FIT:\n\n"
         "• RENDIMIENTO GENERAL: $diagnosticoRitmo\n"
         "• ÍNDICE DE FATIGA:$analisisFatiga\n"
         "• DESVIACIÓN DE RITMO (Picos): ${variabilidadRitmo.toStringAsFixed(3)} m/s.\n\n"
         "💡 OPORTUNIDADES DE MEJORA:\n$mejora";
 
+    String reporteCalorias = "🔥 BALANCE ENERGÉTICO ESTIMADO (Recorrido):\n"
+        "• Si pesas de 50 a 60 kg: ${calRango1.toStringAsFixed(1)} kcal\n"
+        "• Si pesas de 60 a 70 kg: ${calRango2.toStringAsFixed(1)} kcal\n"
+        "• Si pesas de 70 a 80 kg: ${calRango3.toStringAsFixed(1)} kcal\n"
+        "*(Calculado bajo equivalentes metabólicos MET a una velocidad media de ${velocidadMediaKmh.toStringAsFixed(1)} km/h)*";
+
     setState(() {
       ecuacionPromedio = buildEcuacion;
       conclusionRendimiento = diagnosticoFinal;
+      conclusionesCalorias = reporteCalorias;
     });
   }
 
@@ -592,7 +625,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       datosCarreraActual.clear(); datosCarrera1 = null; datosCarrera2 = null;
       carrerasCompletadas = 0; mostrarModuloResultadosGlobales = false;
       medicionActualTerminada = false; tiempoSeleccionado = null;
-      ecuacionPromedio = ""; conclusionRendimiento = "";
+      ecuacionPromedio = ""; conclusionRendimiento = ""; conclusionesCalorias = "";
     });
   }
 
@@ -697,6 +730,18 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
                       ),
                       const SizedBox(height: 15),
                       Text(conclusionRendimiento, style: const TextStyle(fontSize: 13, height: 1.4, color: Colors.white70)),
+                      const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(color: Colors.white10)),
+                      // Render del nuevo bloque con el reporte estético de calorías quemadas
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orangeAccent.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orangeAccent.withOpacity(0.2)),
+                        ),
+                        width: double.infinity,
+                        child: Text(conclusionesCalorias, style: const TextStyle(fontSize: 12.5, height: 1.5, color: Colors.orangeAccent)),
+                      ),
                       const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(color: Colors.white10)),
                       Text('Picos (Máx): ${maximosLocales.isEmpty ? "Ninguno" : maximosLocales.map((m) => "(${m.x.toStringAsFixed(1)}s, ${m.y.toStringAsFixed(1)}m/s)").join(" | ")}', style: const TextStyle(fontSize: 11, color: Colors.greenAccent)),
                       const SizedBox(height: 6),
@@ -875,5 +920,4 @@ class GraficaPromedioPainter extends CustomPainter {
   }
   @override bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-//comando para despliegue en linea:
 // flutter build web --release
