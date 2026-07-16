@@ -279,7 +279,7 @@ class _PantallaMedicionState extends State<PantallaMedicion> {
       
       if (!errorHardware) {
         if (datosCarreraActual.length < 2) {
-          mostrarAviso("⚠️ No se registraron datos reales del acelerómetro. Mueve el teléfono.");
+          mostrarAviso("⚠️ Error en la toma de datos. Intenta de nuevo.");
           return;
         }
 
